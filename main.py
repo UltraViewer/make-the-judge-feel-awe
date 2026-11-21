@@ -19,6 +19,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # silently ship a different entry.
 ENTRY_BYTES = 279
 
+# SHA-256 of the bundled entry.txt, pinned at authoring time.
+# The source file is verified against this value before copying,
+# so even a same-length edit to the entry text is caught.
+ENTRY_SHA256 = "51c6266b8debd587a6c10edc890e52b4c6e71ef394240eed434fcd17f4730d41"
+
 
 def sha256_file(path):
     digest = hashlib.sha256()
@@ -28,9 +33,10 @@ def sha256_file(path):
     return digest.hexdigest()
 
 
-def main():
+def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
     src = os.path.join(HERE, "entry.txt")
-    dst = "/output/entry.txt"
+    dst = argv[0] if argv else "/output/entry.txt"
     if not os.path.isfile(src):
         print("entry.txt not found next to main.py", file=sys.stderr)
         return 1
@@ -39,7 +45,12 @@ def main():
               f"{ENTRY_BYTES}; refusing to write a changed entry",
               file=sys.stderr)
         return 1
-    os.makedirs("/output", exist_ok=True)
+    if sha256_file(src) != ENTRY_SHA256:
+        print(f"entry.txt sha256 {sha256_file(src)} does not match "
+              f"pinned value {ENTRY_SHA256}; refusing to write a "
+              f"changed entry", file=sys.stderr)
+        return 1
+    os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
     shutil.copyfile(src, dst)
     expected = sha256_file(src)
     actual = sha256_file(dst)
